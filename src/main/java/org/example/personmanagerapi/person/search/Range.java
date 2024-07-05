@@ -1,4 +1,4 @@
-package org.example.personmanagerapi.person.search.model;
+package org.example.personmanagerapi.person.search;
 
 public class Range<T extends Comparable<T>> {
     private T from;

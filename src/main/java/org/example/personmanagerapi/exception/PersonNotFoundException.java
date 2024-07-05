@@ -1,2 +1,7 @@
-package org.example.personmanagerapi.exception;public class PersonNotFoundException {
+package org.example.personmanagerapi.exception;
+
+public class PersonNotFoundException extends RuntimeException {
+    public PersonNotFoundException(String message) {
+        super(message);
+    }
 }

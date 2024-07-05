@@ -1,12 +1,10 @@
-package org.example.personmanagerapi.person.search.model;
+package org.example.personmanagerapi.person.search;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 

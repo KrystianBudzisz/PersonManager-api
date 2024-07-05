@@ -1,19 +1,23 @@
-package org.example.personmanagerapi.position;
+package org.example.personmanagerapi.position.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.example.personmanagerapi.employee.Employee;
+import org.example.personmanagerapi.employee.model.Employee;
 
 import java.time.LocalDate;
-import java.util.UUID;
+
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 public class Position {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    private UUID id;
+    private Long id;
 
     @ManyToOne
     @JoinColumn(name = "employee_id", nullable = false)
@@ -24,5 +28,5 @@ public class Position {
     private LocalDate startDate;
     private LocalDate endDate;
 
-    // Getters and setters
+
 }

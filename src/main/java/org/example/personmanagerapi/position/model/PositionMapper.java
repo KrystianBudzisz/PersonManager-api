@@ -1,8 +1,8 @@
-package org.example.personmanagerapi.position;
+package org.example.personmanagerapi.position.model;
 
-import org.example.personmanagerapi.position.model.Position;
+import org.springframework.stereotype.Component;
 
-
+@Component
 public class PositionMapper {
     public PositionDTO toDTO(Position position) {
         return PositionDTO.builder()
@@ -13,7 +13,7 @@ public class PositionMapper {
                 .build();
     }
 
-    public Position toEntity(PositionDTO dto) {
+    public Position toEntity(PositionCommand dto) {
         Position position = new Position();
         position.setPositionName(dto.getPositionName());
         position.setSalary(dto.getSalary());
@@ -21,4 +21,5 @@ public class PositionMapper {
         position.setEndDate(dto.getEndDate());
         return position;
     }
+
 }

@@ -1,22 +1,30 @@
-package org.example.personmanagerapi.person;
+package org.example.personmanagerapi.person.model;
 
-import org.example.personmanagerapi.employee.Employee;
 import org.example.personmanagerapi.employee.EmployeeDTO;
-import org.example.personmanagerapi.person.model.Person;
+import org.example.personmanagerapi.employee.model.Employee;
+import org.example.personmanagerapi.position.model.PositionDTO;
+import org.example.personmanagerapi.position.model.PositionMapper;
 import org.example.personmanagerapi.rentiree.RetireeDTO;
 import org.example.personmanagerapi.rentiree.model.Retiree;
 import org.example.personmanagerapi.student.StudentDTO;
 import org.example.personmanagerapi.student.model.Student;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 
 @Component
 public class PersonMapper {
 
+    @Autowired
+    private PositionMapper positionMapper;
+
     public PersonDTO toDTO(Person person) {
-        if (person instanceof Student) {
-            Student student = (Student) person;
+        if (person instanceof Student student) {
             return StudentDTO.builder()
+                    .id(student.getId())
                     .firstName(student.getFirstName())
                     .lastName(student.getLastName())
                     .pesel(student.getPesel())
@@ -28,9 +36,12 @@ public class PersonMapper {
                     .fieldOfStudy(student.getFieldOfStudy())
                     .scholarship(student.getScholarship())
                     .build();
-        } else if (person instanceof Employee) {
-            Employee employee = (Employee) person;
+        } else if (person instanceof Employee employee) {
+            Set<PositionDTO> positions = employee.getPositions().stream()
+                    .map(positionMapper::toDTO)
+                    .collect(Collectors.toSet());
             return EmployeeDTO.builder()
+                    .id(employee.getId())
                     .firstName(employee.getFirstName())
                     .lastName(employee.getLastName())
                     .pesel(employee.getPesel())
@@ -40,11 +51,12 @@ public class PersonMapper {
                     .employmentDate(employee.getEmploymentDate())
                     .currentPosition(employee.getCurrentPosition())
                     .currentSalary(employee.getCurrentSalary())
-                    .numberOfPositions(employee.getPositions().size())
+                    .numberOfPositions(positions.size())
+                    .positions(positions)
                     .build();
-        } else if (person instanceof Retiree) {
-            Retiree retiree = (Retiree) person;
+        } else if (person instanceof Retiree retiree) {
             return RetireeDTO.builder()
+                    .id(retiree.getId())
                     .firstName(retiree.getFirstName())
                     .lastName(retiree.getLastName())
                     .pesel(retiree.getPesel())
@@ -58,47 +70,5 @@ public class PersonMapper {
         return null;
     }
 
-    public Person toEntity(PersonDTO dto) {
-        if (dto instanceof StudentDTO) {
-            StudentDTO studentDTO = (StudentDTO) dto;
-            Student student = new Student();
-            student.setFirstName(studentDTO.getFirstName());
-            student.setLastName(studentDTO.getLastName());
-            student.setPesel(studentDTO.getPesel());
-            student.setHeight(studentDTO.getHeight());
-            student.setWeight(studentDTO.getWeight());
-            student.setEmail(studentDTO.getEmail());
-            student.setUniversityName(studentDTO.getUniversityName());
-            student.setYearOfStudy(studentDTO.getYearOfStudy());
-            student.setFieldOfStudy(studentDTO.getFieldOfStudy());
-            student.setScholarship(studentDTO.getScholarship());
-            return student;
-        } else if (dto instanceof EmployeeDTO) {
-            EmployeeDTO employeeDTO = (EmployeeDTO) dto;
-            Employee employee = new Employee();
-            employee.setFirstName(employeeDTO.getFirstName());
-            employee.setLastName(employeeDTO.getLastName());
-            employee.setPesel(employeeDTO.getPesel());
-            employee.setHeight(employeeDTO.getHeight());
-            employee.setWeight(employeeDTO.getWeight());
-            employee.setEmail(employeeDTO.getEmail());
-            employee.setEmploymentDate(employeeDTO.getEmploymentDate());
-            employee.setCurrentPosition(employeeDTO.getCurrentPosition());
-            employee.setCurrentSalary(employeeDTO.getCurrentSalary());
-            return employee;
-        } else if (dto instanceof RetireeDTO) {
-            RetireeDTO retireeDTO = (RetireeDTO) dto;
-            Retiree retiree = new Retiree();
-            retiree.setFirstName(retireeDTO.getFirstName());
-            retiree.setLastName(retireeDTO.getLastName());
-            retiree.setPesel(retireeDTO.getPesel());
-            retiree.setHeight(retireeDTO.getHeight());
-            retiree.setWeight(retireeDTO.getWeight());
-            retiree.setEmail(retireeDTO.getEmail());
-            retiree.setPension(retireeDTO.getPension());
-            retiree.setYearsWorked(retireeDTO.getYearsWorked());
-            return retiree;
-        }
-        return null;
-    }
+
 }

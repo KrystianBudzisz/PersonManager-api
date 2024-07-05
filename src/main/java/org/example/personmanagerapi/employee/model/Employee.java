@@ -1,4 +1,4 @@
-package org.example.personmanagerapi.person.search.model;
+package org.example.personmanagerapi.employee.model;
 
 
 import jakarta.persistence.CascadeType;
@@ -8,7 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.example.personmanagerapi.person.search.model.Person;
+import org.example.personmanagerapi.person.model.Person;
 import org.example.personmanagerapi.position.model.Position;
 
 import java.util.HashSet;
@@ -27,10 +27,10 @@ public class Employee extends Person {
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL)
     private Set<Position> positions = new HashSet<>();
 
+
     public void addPosition(Position position) {
         positions.add(position);
         position.setEmployee(this);
     }
-    // Getters and setters
 }
 

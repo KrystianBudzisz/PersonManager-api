@@ -1,15 +1,15 @@
-package org.example.peoplehubapi.csvimport;
+package org.example.personmanagerapi.csvimport;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.example.peoplehubapi.csvImport.model.ImportStatusDTO;
-import org.example.peoplehubapi.person.PersonRepository;
-import org.example.peoplehubapi.person.model.Person;
-import org.example.peoplehubapi.strategy.model.Employee;
-import org.example.peoplehubapi.strategy.model.Retiree;
-import org.example.peoplehubapi.strategy.model.Student;
+
+import org.example.personmanagerapi.csvImport.ImportStatusRepository;
+import org.example.personmanagerapi.csvImport.model.ImportStatus;
+import org.example.personmanagerapi.csvImport.model.ImportStatusDTO;
+import org.example.personmanagerapi.person.PersonRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,112 +17,109 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
+import java.time.LocalDateTime;
 
-import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-
+@ExtendWith(MockitoExtension.class)
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 public class ImportControllerTest {
+
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
-    private PersonRepository personRepository;
+    private ImportStatusRepository importStatusRepository;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private PersonRepository personRepository;
+
+    private ImportStatusDTO importStatusDTO;
+
+    private MockMultipartFile createCSVFile() {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(byteArrayOutputStream);
+        writer.println("type,firstName,lastName,pesel,height,weight,email,universityName,yearOfStudy,fieldOfStudy,scholarship");
+        writer.println("student,John,Doe,12345678901,180.5,75.0,john.doe@example.com,XYZ University,3,Computer Science,1000.0");
+        writer.close();
+        return new MockMultipartFile("file", "test.csv", MediaType.TEXT_PLAIN_VALUE, byteArrayOutputStream.toByteArray());
+    }
 
     @BeforeEach
-    public void setup() {
-        objectMapper.registerModule(new JavaTimeModule());
+    public void setUp() {
+
+        importStatusDTO = new ImportStatusDTO();
+        importStatusDTO.setId(1L);
+        importStatusDTO.setStatus("IN_PROGRESS");
+        importStatusDTO.setCreatedDate(LocalDateTime.now());
+        importStatusDTO.setStartedDate(null);
+        importStatusDTO.setProcessedRecords(0);
+    }
+
+    @AfterEach
+    public void cleanUp() {
+        importStatusRepository.deleteAll();
+        personRepository.deleteAll();
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
-    public void testImportPersons() throws Exception {
-        StringBuilder csvData = new StringBuilder();
-        csvData.append("STUDENT,John,Doe,1234567890,180.0,80.0,john.doe@example.com,Test University,2,Test Field,1000\n");
-        csvData.append("EMPLOYEE,Jane,Smith,9876543210,160.0,70.0,jane.smith@example.com,2020-01-01,Manager,5000,20\n");
-        csvData.append("RETIREE,James,Brown,1357924680,170.0,75.0,james.brown@example.com,2000,30\n");
+    @WithMockUser(roles = {"ADMIN", "IMPORTER"})
+    public void importCSV_ShouldReturnImportStatus() throws Exception {
+        MockMultipartFile file = createCSVFile();
 
-        MockMultipartFile file = new MockMultipartFile("file", "test.csv",
-                MediaType.TEXT_PLAIN_VALUE, csvData.toString().getBytes());
-
-        MvcResult result = mockMvc.perform(multipart("/api/imports/persons")
-                        .file(file))
-                .andExpect(status().isAccepted())
-                .andReturn();
-
-        System.out.println("Response Body: " + result.getResponse().getContentAsString());
-
-        List<Person> importedPersons = personRepository.findAll();
-        assertEquals(2, importedPersons.size());
-
-        for (Person person : importedPersons) {
-            assertNotNull(person.getId());
-            assertNotNull(person.getFirstName());
-            assertNotNull(person.getLastName());
-            assertNotNull(person.getPesel());
-            assertNotNull(person.getHeight());
-            assertNotNull(person.getWeight());
-            assertNotNull(person.getEmail());
-
-            if (person instanceof Student) {
-                Student student = (Student) person;
-                assertNotNull(student.getUniversityName());
-                assertNotNull(student.getYearOfStudy());
-                assertNotNull(student.getFieldOfStudy());
-                assertNotNull(student.getScholarship());
-            } else if (person instanceof Employee) {
-                Employee employee = (Employee) person;
-                assertNotNull(employee.getEmploymentDate());
-                assertNotNull(employee.getPosition());
-                assertNotNull(employee.getSalary());
-                assertNotNull(employee.getNumberOfProfessions());
-            } else if (person instanceof Retiree) {
-                Retiree retiree = (Retiree) person;
-                assertNotNull(retiree.getPensionAmount());
-                assertNotNull(retiree.getYearsWorked());
-            }
-        }
-    }
-
-
-    @Test
-    @WithMockUser(roles = {"ADMIN"})
-    public void testImportEmployeesAndCheckCompletedStatus() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "employees.csv", "text/csv",
-                "EMPLOYEE,John,Doe,12345678901,180,80,john.doe@example.com,2022-01-01,Software Engineer,50000,1\n".getBytes());
-
-        MvcResult importResult = mockMvc.perform(multipart("/api/imports/persons")
-                        .file(file))
-                .andExpect(status().isAccepted())
-                .andReturn();
-
-
-        String responseString = importResult.getResponse().getContentAsString();
-        ImportStatusDTO importStatusDTO = objectMapper.readValue(responseString, ImportStatusDTO.class);
-        Long importId = importStatusDTO.getId();
-
-
-        Thread.sleep(1000);
-
-
-        mockMvc.perform(get("/api/imports/status/" + importId)
-                        .contentType(MediaType.APPLICATION_JSON))
+        mockMvc.perform(multipart("/api/imports").file(file))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status", is("COMPLETED")));
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+        ImportStatus importStatus = importStatusRepository.findAll().get(0);
+        assertThat(importStatus).isNotNull();
+        assertThat(importStatus.getStatus()).isEqualTo("IN_PROGRESS");
+
     }
 
+    @Test
+    @WithMockUser(roles = {"ADMIN", "IMPORTER"})
+    public void importCSV_ShouldThrowCSVProcessingException_WhenFileIsEmpty() throws Exception {
+        MockMultipartFile emptyFile = new MockMultipartFile("file", "empty.csv", MediaType.TEXT_PLAIN_VALUE, new byte[0]);
 
+        mockMvc.perform(multipart("/api/imports").file(emptyFile))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Bad request. File is empty."));
+
+        assertThat(importStatusRepository.findAll()).isEmpty();
+        assertThat(personRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN", "IMPORTER"})
+    public void getImportStatus_ShouldReturnImportStatus() throws Exception {
+        ImportStatus importStatus = new ImportStatus();
+        importStatus.setStatus("IN_PROGRESS");
+        importStatus.setCreatedDate(LocalDateTime.now());
+        importStatusRepository.save(importStatus);
+
+        mockMvc.perform(get("/api/imports/{id}", importStatus.getId()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(importStatus.getId()))
+                .andExpect(jsonPath("$.status").value(importStatus.getStatus()));
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN", "IMPORTER"})
+    public void getImportStatus_ShouldThrowImportStatusNotFoundException() throws Exception {
+        mockMvc.perform(get("/api/imports/{id}", 999))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Import status not found"));
+    }
 }

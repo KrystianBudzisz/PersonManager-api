@@ -4,9 +4,9 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
-import org.example.personmanagerapi.employee.model.Employee;
 import org.example.personmanagerapi.person.model.Person;
-import org.example.personmanagerapi.student.model.Student;
+import org.example.personmanagerapi.strategy.PersonTypeStrategy;
+import org.example.personmanagerapi.strategy.PersonTypeStrategyFactory;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
@@ -15,66 +15,78 @@ import java.util.Map;
 
 public class PersonSpecification implements Specification<Person> {
 
-    private final Map<String, String> criteria;
+    private final PersonSearchCriteria criteria;
+    private final Map<String, Object> dynamicCriteria;
+    private final PersonTypeStrategyFactory strategyFactory;
 
-    public PersonSpecification(Map<String, String> criteria) {
+    public PersonSpecification(PersonSearchCriteria criteria, Map<String, Object> dynamicCriteria, PersonTypeStrategyFactory strategyFactory) {
         this.criteria = criteria;
+        this.dynamicCriteria = dynamicCriteria;
+        this.strategyFactory = strategyFactory;
     }
 
     @Override
-    public Predicate toPredicate(Root<Person> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
+    public Predicate toPredicate(Root<Person> root, CriteriaQuery<?> query, CriteriaBuilder builder) {
         List<Predicate> predicates = new ArrayList<>();
+        Map<String, Object> criteriaMap = criteria.toMap();
 
-        criteria.forEach((key, value) -> {
-            switch (key) {
-                case "type":
-                    predicates.add(cb.equal(root.type(), value));
-                    break;
-                case "firstName":
-                    predicates.add(cb.like(cb.lower(root.get("firstName")), "%" + value.toLowerCase() + "%"));
-                    break;
-                case "lastName":
-                    predicates.add(cb.like(cb.lower(root.get("lastName")), "%" + value.toLowerCase() + "%"));
-                    break;
-                case "pesel":
-                    predicates.add(cb.like(cb.lower(root.get("pesel")), "%" + value.toLowerCase() + "%"));
-                    break;
-                case "email":
-                    predicates.add(cb.like(cb.lower(root.get("email")), "%" + value.toLowerCase() + "%"));
-                    break;
-                case "heightFrom":
-                    predicates.add(cb.greaterThanOrEqualTo(root.get("height"), Integer.valueOf(value)));
-                    break;
-                case "heightTo":
-                    predicates.add(cb.lessThanOrEqualTo(root.get("height"), Integer.valueOf(value)));
-                    break;
-                case "weightFrom":
-                    predicates.add(cb.greaterThanOrEqualTo(root.get("weight"), Integer.valueOf(value)));
-                    break;
-                case "weightTo":
-                    predicates.add(cb.lessThanOrEqualTo(root.get("weight"), Integer.valueOf(value)));
-                    break;
-                // Add cases for specific fields like employee current salary, student university name, etc.
-                case "currentSalaryFrom":
-                    if (root.getJavaType().equals(Employee.class)) {
-                        predicates.add(cb.greaterThanOrEqualTo(root.get("currentSalary"), Double.valueOf(value)));
-                    }
-                    break;
-                case "currentSalaryTo":
-                    if (root.getJavaType().equals(Employee.class)) {
-                        predicates.add(cb.lessThanOrEqualTo(root.get("currentSalary"), Double.valueOf(value)));
-                    }
-                    break;
-                case "universityName":
-                    if (root.getJavaType().equals(Student.class)) {
-                        predicates.add(cb.like(cb.lower(root.get("universityName")), "%" + value.toLowerCase() + "%"));
-                    }
-                    break;
-                // Add more cases as needed
+        if (criteriaMap.containsKey("type")) {
+            String type = (String) criteriaMap.get("type");
+            PersonTypeStrategy strategy = strategyFactory.getStrategy(type);
+            if (strategy != null) {
+                predicates.add(builder.equal(root.type(), strategy.getPersonType()));
+            }
+        }
+
+        criteriaMap.forEach((key, value) -> {
+            if (value != null) {
+                switch (key) {
+                    case "firstName":
+                        predicates.add(builder.like(builder.lower(root.get("firstName")), "%" + value.toString().toLowerCase() + "%"));
+                        break;
+                    case "lastName":
+                        predicates.add(builder.like(builder.lower(root.get("lastName")), "%" + value.toString().toLowerCase() + "%"));
+                        break;
+                    case "pesel":
+                        predicates.add(builder.equal(root.get("pesel"), value));
+                        break;
+                    case "email":
+                        predicates.add(builder.like(builder.lower(root.get("email")), "%" + value.toString().toLowerCase() + "%"));
+                        break;
+                    case "heightFrom":
+                        predicates.add(builder.greaterThanOrEqualTo(root.get("height"), (Double) value));
+                        break;
+                    case "heightTo":
+                        predicates.add(builder.lessThanOrEqualTo(root.get("height"), (Double) value));
+                        break;
+                    case "weightFrom":
+                        predicates.add(builder.greaterThanOrEqualTo(root.get("weight"), (Double) value));
+                        break;
+                    case "weightTo":
+                        predicates.add(builder.lessThanOrEqualTo(root.get("weight"), (Double) value));
+                        break;
+                }
             }
         });
 
-        return cb.and(predicates.toArray(new Predicate[0]));
+        dynamicCriteria.forEach((key, value) -> {
+            if (criteriaMap.containsKey(key)) {
+                Object fieldValue = criteriaMap.get(key);
+                if (fieldValue != null) {
+                    if (fieldValue instanceof Range<?>) {
+                        Range<?> range = (Range<?>) fieldValue;
+                        if (range.getFrom() instanceof Comparable && range.getTo() instanceof Comparable) {
+                            predicates.add(builder.between(root.get(key), (Comparable) range.getFrom(), (Comparable) range.getTo()));
+                        }
+                    } else {
+                        predicates.add(builder.equal(root.get(key), fieldValue));
+                    }
+                }
+            }
+        });
+
+        return builder.and(predicates.toArray(new Predicate[0]));
     }
 }
+
 

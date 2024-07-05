@@ -1,6 +1,7 @@
-package org.example.personmanagerapi.employee.model;
+package org.example.personmanagerapi.employee;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,8 +14,6 @@ import org.example.personmanagerapi.person.model.PersonCommand;
 @NoArgsConstructor
 @AllArgsConstructor
 public class EmployeeCommand extends PersonCommand {
-
-
     @NotBlank(message = "Employment date is mandatory")
     private String employmentDate;
 
@@ -22,5 +21,6 @@ public class EmployeeCommand extends PersonCommand {
     private String currentPosition;
 
     @Positive(message = "Current salary must be positive")
-    private double currentSalary;
+    @NotNull(message = "Current salary is mandatory")
+    private Double currentSalary;
 }

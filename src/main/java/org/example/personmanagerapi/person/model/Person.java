@@ -1,4 +1,4 @@
-package org.example.personmanagerapi.person.search.model;
+package org.example.personmanagerapi.person.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.UUID;
+
 @Getter
 @Setter
 @Entity
@@ -20,6 +21,7 @@ public abstract class Person {
 
     private String firstName;
     private String lastName;
+    @Column(unique = true, length = 11)
     private String pesel;
     private double height;
     private double weight;
@@ -27,4 +29,6 @@ public abstract class Person {
 
     @Version
     private Long version;
+
+
 }

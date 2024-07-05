@@ -1,356 +1,247 @@
-package org.example.peoplehubapi.person;
+package org.example.personmanagerapi.person;
 
-import org.example.peoplehubapi.exception.InvalidPersonCreationException;
-import org.example.peoplehubapi.person.model.CreatePersonCommand;
-import org.example.peoplehubapi.person.model.PersonDTO;
-import org.example.peoplehubapi.person.model.UpdatePersonCommand;
-import org.example.peoplehubapi.person.specification.PersonSearchCriteria;
-import org.example.peoplehubapi.person.specification.PersonSpecification;
-import org.example.peoplehubapi.position.PositionRepository;
-import org.example.peoplehubapi.position.model.CreatePositionCommand;
-import org.example.peoplehubapi.position.model.Position;
-import org.example.peoplehubapi.position.model.PositionDTO;
-import org.example.peoplehubapi.strategy.creation.PersonCreationStrategy;
-import org.example.peoplehubapi.strategy.model.Employee;
-import org.example.peoplehubapi.strategy.model.Retiree;
-import org.example.peoplehubapi.strategy.model.Student;
+
+import org.example.personmanagerapi.exception.DuplicatePersonException;
+import org.example.personmanagerapi.exception.InvalidPersonTypeException;
+import org.example.personmanagerapi.exception.PersonNotFoundException;
+import org.example.personmanagerapi.person.model.Person;
+import org.example.personmanagerapi.person.model.PersonCommand;
+import org.example.personmanagerapi.person.model.PersonDTO;
+import org.example.personmanagerapi.person.model.PersonMapper;
+import org.example.personmanagerapi.person.search.PersonSearchCriteria;
+import org.example.personmanagerapi.strategy.PersonTypeStrategy;
+import org.example.personmanagerapi.strategy.PersonTypeStrategyFactory;
+import org.example.personmanagerapi.student.StudentDTO;
+import org.example.personmanagerapi.student.model.Student;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class PersonServiceTest {
+public class PersonServiceTest {
+
+    @InjectMocks
+    private PersonService personService;
 
     @Mock
     private PersonRepository personRepository;
 
     @Mock
-    private PositionRepository positionRepository;
+    private PersonMapper personMapper;
 
     @Mock
-    private PersonCreationStrategy studentStrategy;
+    private PersonTypeStrategyFactory strategyFactory;
 
-    @Mock
-    private PersonCreationStrategy employeeStrategy;
+    @Captor
+    private ArgumentCaptor<Person> personArgumentCaptor;
 
-    @Mock
-    private PersonCreationStrategy retireeStrategy;
-
-    private PersonService personService;
+    private Student student;
+    private PersonCommand personCommand;
+    private StudentDTO studentDTO;
 
 
     @BeforeEach
-    void setUp() {
-        when(studentStrategy.getType()).thenReturn("STUDENT");
-        when(employeeStrategy.getType()).thenReturn("EMPLOYEE");
-        when(retireeStrategy.getType()).thenReturn("RETIREE");
+    public void setUp() {
+        student = new Student();
+        student.setId(UUID.randomUUID());
+        student.setFirstName("John");
+        student.setLastName("Doe");
+        student.setPesel(UUID.randomUUID().toString().substring(0, 11));
+        student.setHeight(180.5);
+        student.setWeight(75.0);
+        student.setEmail("john.doe@example.com");
+        student.setUniversityName("XYZ University");
+        student.setYearOfStudy(3);
+        student.setFieldOfStudy("Computer Science");
+        student.setScholarship(1000.0);
+        student.setVersion(0L);
 
-        List<PersonCreationStrategy> strategies = Arrays.asList(studentStrategy, employeeStrategy, retireeStrategy);
+        personCommand = new PersonCommand();
+        personCommand.setType("student");
+        personCommand.setFirstName("John");
+        personCommand.setLastName("Doe");
+        personCommand.setPesel(student.getPesel());
+        personCommand.setHeight(180.5);
+        personCommand.setWeight(75.0);
+        personCommand.setEmail("john.doe@example.com");
+        Map<String, Object> typeSpecificFields = new HashMap<>();
+        typeSpecificFields.put("universityName", "XYZ University");
+        typeSpecificFields.put("yearOfStudy", 3);
+        typeSpecificFields.put("fieldOfStudy", "Computer Science");
+        typeSpecificFields.put("scholarship", 1000.0);
+        personCommand.setTypeSpecificFields(typeSpecificFields);
 
-        personService = new PersonService(strategies, personRepository, positionRepository);
-    }
-
-
-    @Test
-    void testCreateStudent() {
-        Map<String, String> studentAttributes = new HashMap<>();
-        studentAttributes.put("firstName", "John");
-        studentAttributes.put("lastName", "Doe");
-        studentAttributes.put("pesel", "99010112345");
-        studentAttributes.put("email", "john.doe@example.com");
-        studentAttributes.put("height", "180");
-        studentAttributes.put("weight", "75");
-        studentAttributes.put("universityName", "University of Technology");
-        studentAttributes.put("yearOfStudy", "2");
-        studentAttributes.put("fieldOfStudy", "Computer Science");
-        studentAttributes.put("scholarship", "1000");
-
-        CreatePersonCommand command = new CreatePersonCommand("STUDENT", studentAttributes);
-
-        Student expectedStudent = new Student();
-        expectedStudent.setFirstName("John");
-        expectedStudent.setLastName("Doe");
-        expectedStudent.setPesel("99010112345");
-        expectedStudent.setEmail("john.doe@example.com");
-        expectedStudent.setHeight(180.0);
-        expectedStudent.setWeight(75.0);
-        expectedStudent.setUniversityName("University of Technology");
-        expectedStudent.setYearOfStudy(2);
-        expectedStudent.setFieldOfStudy("Computer Science");
-        expectedStudent.setScholarship(new BigDecimal("1000"));
-
-        when(studentStrategy.create(any())).thenReturn(expectedStudent);
-        when(personRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        personService.create(command);
-
-        ArgumentCaptor<Student> studentCaptor = ArgumentCaptor.forClass(Student.class);
-        verify(personRepository).save(studentCaptor.capture());
-        Student savedStudent = studentCaptor.getValue();
-
-        assertNotNull(savedStudent);
-        assertEquals("John", savedStudent.getFirstName());
-        assertEquals("Doe", savedStudent.getLastName());
-        assertEquals("99010112345", savedStudent.getPesel());
-        assertEquals("john.doe@example.com", savedStudent.getEmail());
-        assertEquals(180, savedStudent.getHeight());
-        assertEquals(75, savedStudent.getWeight());
-        assertEquals("University of Technology", savedStudent.getUniversityName());
-        assertEquals(2, savedStudent.getYearOfStudy());
-        assertEquals("Computer Science", savedStudent.getFieldOfStudy());
-        assertEquals(new BigDecimal("1000"), savedStudent.getScholarship());
-    }
-
-
-    @Test
-    void testCreateEmployee() {
-        Map<String, String> employeeAttributes = new HashMap<>();
-        employeeAttributes.put("firstName", "Jane");
-        employeeAttributes.put("lastName", "Doe");
-        employeeAttributes.put("pesel", "89010112345");
-        employeeAttributes.put("email", "jane.doe@example.com");
-        employeeAttributes.put("height", "170");
-        employeeAttributes.put("weight", "60");
-        employeeAttributes.put("employmentDate", "2020-01-01");
-        employeeAttributes.put("position", "Software Developer");
-        employeeAttributes.put("salary", "3000");
-        employeeAttributes.put("numberOfProfessions", "1");
-
-        CreatePersonCommand command = new CreatePersonCommand("EMPLOYEE", employeeAttributes);
-
-        Employee expectedEmployee = Employee.builder()
-                .firstName("Jane")
-                .lastName("Doe")
-                .pesel("89010112345")
-                .email("jane.doe@example.com")
-                .height(170.0)
-                .weight(60.0)
-                .employmentDate(LocalDate.parse(employeeAttributes.get("employmentDate")))
-                .position(employeeAttributes.get("position"))
-                .salary(new BigDecimal(employeeAttributes.get("salary")))
-                .numberOfProfessions(Integer.parseInt(employeeAttributes.get("numberOfProfessions")))
-                .build();
-
-        when(employeeStrategy.create(any(CreatePersonCommand.class))).thenReturn(expectedEmployee);
-        when(personRepository.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        personService.create(command);
-
-        ArgumentCaptor<Employee> employeeCaptor = ArgumentCaptor.forClass(Employee.class);
-        verify(personRepository).save(employeeCaptor.capture());
-        Employee savedEmployee = employeeCaptor.getValue();
-
-        assertNotNull(savedEmployee);
-        assertEquals("Jane", savedEmployee.getFirstName());
-        assertEquals("Doe", savedEmployee.getLastName());
-        assertEquals("89010112345", savedEmployee.getPesel());
-        assertEquals("jane.doe@example.com", savedEmployee.getEmail());
-        assertEquals(170.0, savedEmployee.getHeight());
-        assertEquals(60.0, savedEmployee.getWeight());
-        assertEquals(LocalDate.parse("2020-01-01"), savedEmployee.getEmploymentDate());
-        assertEquals("Software Developer", savedEmployee.getPosition());
-        assertEquals(new BigDecimal("3000"), savedEmployee.getSalary());
-        assertEquals(1, savedEmployee.getNumberOfProfessions());
-    }
-
-    @Test
-    void testCreateRetiree() {
-        Map<String, String> retireeAttributes = new HashMap<>();
-        retireeAttributes.put("firstName", "John");
-        retireeAttributes.put("lastName", "Smith");
-        retireeAttributes.put("pesel", "85010112345");
-        retireeAttributes.put("email", "john.smith@example.com");
-        retireeAttributes.put("height", "175");
-        retireeAttributes.put("weight", "70");
-        retireeAttributes.put("pensionAmount", "2000");
-        retireeAttributes.put("yearsWorked", "30");
-
-        CreatePersonCommand command = new CreatePersonCommand("RETIREE", retireeAttributes);
-
-        Retiree expectedRetiree = Retiree.builder()
-                .firstName("John")
-                .lastName("Smith")
-                .pesel("85010112345")
-                .email("john.smith@example.com")
-                .height(175.0)
-                .weight(70.0)
-                .pensionAmount(new BigDecimal("2000"))
-                .yearsWorked(30)
-                .build();
-
-        when(retireeStrategy.create(any(CreatePersonCommand.class))).thenReturn(expectedRetiree);
-        when(personRepository.save(any(Retiree.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        personService.create(command);
-
-        ArgumentCaptor<Retiree> retireeCaptor = ArgumentCaptor.forClass(Retiree.class);
-        verify(personRepository).save(retireeCaptor.capture());
-        Retiree savedRetiree = retireeCaptor.getValue();
-
-        assertNotNull(savedRetiree);
-        assertEquals("John", savedRetiree.getFirstName());
-        assertEquals("Smith", savedRetiree.getLastName());
-        assertEquals("85010112345", savedRetiree.getPesel());
-        assertEquals("john.smith@example.com", savedRetiree.getEmail());
-        assertEquals(175.0, savedRetiree.getHeight());
-        assertEquals(70.0, savedRetiree.getWeight());
-        assertEquals(new BigDecimal("2000"), savedRetiree.getPensionAmount());
-        assertEquals(30, savedRetiree.getYearsWorked());
-    }
-
-    @Test
-    void testUpdateRetiree() {
-        Map<String, String> retireeAttributes = new HashMap<>();
-        retireeAttributes.put("firstName", "John");
-        retireeAttributes.put("lastName", "Smith");
-        retireeAttributes.put("email", "john.smith@example.com");
-        retireeAttributes.put("height", "180");
-        retireeAttributes.put("weight", "75");
-        retireeAttributes.put("pensionAmount", "2500");
-        retireeAttributes.put("yearsWorked", "35");
-
-        UpdatePersonCommand command = new UpdatePersonCommand(retireeAttributes);
-
-        Retiree mockRetiree = Retiree.builder()
-                .firstName("John")
-                .lastName("Doe")
-                .email("john.doe@example.com")
-                .height(175.0)
-                .weight(70.0)
-                .pensionAmount(new BigDecimal("2000"))
-                .yearsWorked(30)
-                .build();
-
-        when(personRepository.findById(anyLong())).thenReturn(Optional.of(mockRetiree));
-
-        personService.update(1L, command);
-
-        ArgumentCaptor<Retiree> retireeCaptor = ArgumentCaptor.forClass(Retiree.class);
-        verify(personRepository).save(retireeCaptor.capture());
+        studentDTO = new StudentDTO();
+        studentDTO.setId(student.getId());
+        studentDTO.setFirstName("John");
+        studentDTO.setLastName("Doe");
+        studentDTO.setPesel(student.getPesel());
+        studentDTO.setHeight(180.5);
+        studentDTO.setWeight(75.0);
+        studentDTO.setEmail("john.doe@example.com");
+        studentDTO.setUniversityName("XYZ University");
+        studentDTO.setYearOfStudy(3);
+        studentDTO.setFieldOfStudy("Computer Science");
+        studentDTO.setScholarship(1000.0);
 
     }
 
-
     @Test
-    public void whenAddPositionToEmployee_thenPositionIsAddedCorrectly() {
-        Long employeeId = 1L;
-        CreatePositionCommand positionCommand = new CreatePositionCommand();
-        positionCommand.setName("Developer");
-        positionCommand.setSalary(new BigDecimal("70000"));
-        positionCommand.setStartDate(LocalDate.of(2023, 1, 1));
-        positionCommand.setEndDate(LocalDate.of(2023, 12, 31));
+    public void getPersonById_ShouldReturnPerson() {
+        when(personRepository.findById(student.getId())).thenReturn(Optional.of(student));
+        when(personMapper.toDTO(any(Person.class))).thenReturn(studentDTO);
 
-        Employee employee = new Employee();
-        employee.setId(employeeId);
-        when(personRepository.findById(employeeId)).thenReturn(Optional.of(employee));
-        when(positionRepository.findByEmployeeIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(employeeId, positionCommand.getEndDate(), positionCommand.getStartDate()))
-                .thenReturn(Collections.emptyList());
+        PersonDTO result = personService.getPersonById(student.getId());
 
-        Position newPosition = new Position();
-        when(positionRepository.save(any(Position.class))).thenReturn(newPosition);
-
-        PositionDTO addedPosition = personService.addPosition(employeeId, positionCommand);
-
-        assertNotNull(addedPosition);
-        assertEquals("Developer", addedPosition.getName());
-        assertEquals(new BigDecimal("70000"), addedPosition.getSalary());
-        assertEquals(LocalDate.of(2023, 1, 1), addedPosition.getStartDate());
-        assertEquals(LocalDate.of(2023, 12, 31), addedPosition.getEndDate());
-        assertEquals(employeeId, addedPosition.getEmployeeId());
+        assertThat(result).isNotNull();
+        assertThat(result.getFirstName()).isEqualTo(student.getFirstName());
+        verify(personRepository).findById(student.getId());
+        verify(personMapper).toDTO(any(Person.class));
     }
 
     @Test
-    public void testSearchEmployeeByValues() {
-        Employee employee = new Employee();
-        employee.setId(1L);
-        employee.setFirstName("John");
-        employee.setLastName("Doe");
-        employee.setPesel("12345678901");
-        employee.setEmail("john.doe@example.com");
-        employee.setHeight(180.0);
-        employee.setWeight(80.0);
-        employee.setEmploymentDate(LocalDate.of(2020, 1, 1));
-        employee.setPosition("Software Developer");
-        employee.setSalary(new BigDecimal("5000"));
-        employee.setNumberOfProfessions(1);
+    public void getPersonById_ShouldThrowPersonNotFoundException() {
+        when(personRepository.findById(student.getId())).thenReturn(Optional.empty());
 
-        when(personRepository.findAll(any(PersonSpecification.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(Collections.singletonList(employee)));
+        assertThatThrownBy(() -> personService.getPersonById(student.getId()))
+                .isInstanceOf(PersonNotFoundException.class)
+                .hasMessageContaining("Person not found with ID: " + student.getId());
 
-        PersonSearchCriteria searchCriteria = new PersonSearchCriteria();
-        searchCriteria.setType("EMPLOYEE");
-        searchCriteria.setName("John");
-        searchCriteria.setLastName("Doe");
-        searchCriteria.setPesel("12345678901");
-        searchCriteria.setEmail("john.doe@example.com");
-        searchCriteria.setHeightFrom(175.0);
-        searchCriteria.setHeightTo(185.0);
-        searchCriteria.setWeightFrom(75.0);
-        searchCriteria.setWeightTo(85.0);
-        searchCriteria.setEmploymentDateFrom(LocalDate.of(2020, 1, 1));
-        searchCriteria.setEmploymentDateTo(LocalDate.of(2022, 1, 1));
-        searchCriteria.setPosition("Software Developer");
-        searchCriteria.setSalaryFrom(new BigDecimal("4000"));
-        searchCriteria.setSalaryTo(new BigDecimal("6000"));
-        searchCriteria.setNumberOfProfessionsFrom(1);
-        searchCriteria.setNumberOfProfessionsTo(3);
+        verify(personRepository).findById(student.getId());
+    }
 
+    @Test
+    public void createPerson_ShouldReturnCreatedPerson() {
+        PersonTypeStrategy strategy = mock(PersonTypeStrategy.class);
+        when(strategyFactory.getStrategy("student")).thenReturn(strategy);
+        when(strategy.preparePerson(personCommand)).thenReturn(student);
+        when(personRepository.save(any(Person.class))).thenReturn(student);
+        when(personMapper.toDTO(any(Person.class))).thenReturn(studentDTO);
+
+        PersonDTO result = personService.createPerson(personCommand);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getFirstName()).isEqualTo(student.getFirstName());
+        verify(personRepository).save(personArgumentCaptor.capture());
+        verify(personMapper).toDTO(any(Person.class));
+
+        Person capturedPerson = personArgumentCaptor.getValue();
+        assertThat(capturedPerson).isNotNull();
+        assertThat(capturedPerson.getFirstName()).isEqualTo("John");
+        assertThat(capturedPerson.getLastName()).isEqualTo("Doe");
+    }
+
+    @Test
+    public void createPerson_ShouldThrowDuplicatePersonException() {
+        PersonTypeStrategy strategy = mock(PersonTypeStrategy.class);
+        when(strategyFactory.getStrategy("student")).thenReturn(strategy);
+        when(strategy.preparePerson(personCommand)).thenReturn(student);
+        when(personRepository.save(any(Person.class))).thenThrow(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> personService.createPerson(personCommand))
+                .isInstanceOf(DuplicatePersonException.class)
+                .hasMessageContaining("A person with the same unique identifier already exists.");
+
+        verify(personRepository).save(any(Person.class));
+    }
+
+    @Test
+    public void updatePerson_ShouldReturnUpdatedPerson() {
+        PersonTypeStrategy strategy = mock(PersonTypeStrategy.class);
+        when(personRepository.findById(student.getId())).thenReturn(Optional.of(student));
+        when(strategyFactory.getStrategy("student")).thenReturn(strategy);
+        when(strategy.preparePerson(personCommand)).thenReturn(student);
+        when(personRepository.save(any(Person.class))).thenReturn(student);
+        when(personMapper.toDTO(any(Person.class))).thenReturn(studentDTO);
+
+        PersonDTO result = personService.updatePerson(student.getId(), personCommand);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getFirstName()).isEqualTo("John");
+        verify(personRepository).findById(student.getId());
+        verify(personRepository).save(personArgumentCaptor.capture());
+        verify(personMapper).toDTO(any(Person.class));
+
+        Person capturedPerson = personArgumentCaptor.getValue();
+        assertThat(capturedPerson).isNotNull();
+        assertThat(capturedPerson.getFirstName()).isEqualTo("John");
+        assertThat(capturedPerson.getLastName()).isEqualTo("Doe");
+    }
+
+    @Test
+    public void updatePerson_ShouldThrowPersonNotFoundException() {
+        when(personRepository.findById(student.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> personService.updatePerson(student.getId(), personCommand))
+                .isInstanceOf(PersonNotFoundException.class)
+                .hasMessageContaining("Person not found with ID: " + student.getId());
+
+        verify(personRepository).findById(student.getId());
+    }
+
+    @Test
+    public void updatePerson_ShouldThrowInvalidPersonTypeException() {
+        when(personRepository.findById(student.getId())).thenReturn(Optional.of(student));
+        when(strategyFactory.getStrategy("student")).thenReturn(null);
+
+        assertThatThrownBy(() -> personService.updatePerson(student.getId(), personCommand))
+                .isInstanceOf(InvalidPersonTypeException.class)
+                .hasMessageContaining("Person type not supported: student");
+
+        verify(personRepository).findById(student.getId());
+    }
+
+    @Test
+    public void searchPersons_ShouldReturnPersonPage() {
+        PersonSearchCriteria criteria = new PersonSearchCriteria();
         Pageable pageable = PageRequest.of(0, 10);
+        List<Person> personList = Collections.singletonList(student);
+        Page<Person> personPage = new PageImpl<>(personList);
 
-        Page<PersonDTO> resultPage = personService.searchPersons(searchCriteria, pageable);
-        List<PersonDTO> result = resultPage.getContent();
+        when(personRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(personPage);
+        when(personMapper.toDTO(any(Person.class))).thenReturn(studentDTO);
 
-        assertEquals(1, result.size());
-        PersonDTO foundEmployee = result.get(0);
-        assertEquals(employee.getFirstName(), foundEmployee.getFirstName());
-        assertEquals(employee.getLastName(), foundEmployee.getLastName());
-        assertEquals(employee.getPesel(), foundEmployee.getPesel());
-        assertEquals(employee.getHeight(), foundEmployee.getHeight());
-        assertEquals(employee.getWeight(), foundEmployee.getWeight());
-        assertEquals(employee.getEmail(), foundEmployee.getEmail());
-        assertEquals(employee.getEmploymentDate(), foundEmployee.getAdditionalAttributes().get("employmentDate"));
-        assertEquals(employee.getPosition(), foundEmployee.getAdditionalAttributes().get("position"));
-        assertEquals(employee.getSalary(), foundEmployee.getAdditionalAttributes().get("salary"));
-        assertEquals(employee.getNumberOfProfessions(), foundEmployee.getAdditionalAttributes().get("numberOfProfessions"));
+        Page<PersonDTO> result = personService.searchPersons(criteria, pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        verify(personRepository).findAll(any(Specification.class), any(Pageable.class));
+        verify(personMapper).toDTO(any(Person.class));
     }
 
     @Test
-    void createEmployee_MissingFirstName_ThrowsInvalidPersonCreationException() {
-        // Arrange
-        Map<String, String> params = new HashMap<>();
-        params.put("lastName", "Doe");
-        params.put("pesel", "89010112345");
-        params.put("email", "jane.doe@example.com");
-        params.put("height", "170");
-        params.put("weight", "60");
-        params.put("employmentDate", "2020-01-01");
-        params.put("position", "Software Developer");
-        params.put("salary", "3000");
-        params.put("numberOfProfessions", "1");
+    public void searchPersons_ShouldReturnEmptyPage() {
+        PersonSearchCriteria criteria = new PersonSearchCriteria();
+        Pageable pageable = PageRequest.of(0, 10);
+        List<Person> personList = Collections.emptyList();
+        Page<Person> personPage = new PageImpl<>(personList);
 
-        CreatePersonCommand command = new CreatePersonCommand("EMPLOYEE", params);
+        when(personRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(personPage);
 
-        doThrow(new InvalidPersonCreationException("First name is required."))
-                .when(employeeStrategy).create(any(CreatePersonCommand.class));
+        Page<PersonDTO> result = personService.searchPersons(criteria, pageable);
 
-        Exception exception = assertThrows(InvalidPersonCreationException.class, () -> personService.create(command));
-
-        assertTrue(exception.getMessage().contains("First name is required."));
+        assertThat(result).isNotNull();
+        assertThat(result.getTotalElements()).isEqualTo(0);
+        verify(personRepository).findAll(any(Specification.class), any(Pageable.class));
     }
-}
 
+
+}

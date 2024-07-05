@@ -1,20 +1,24 @@
-package org.example.personmanagerapi.person;
+package org.example.personmanagerapi.person.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+
+import java.util.UUID;
 
 @Getter
 @Setter
 @SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
 public abstract class PersonDTO {
+    private UUID id;
     private String firstName;
     private String lastName;
     private String pesel;
-    private int height;
-    private int weight;
+    private double height;
+    private double weight;
     private String email;
-
-    // Getters and setters
 }
-

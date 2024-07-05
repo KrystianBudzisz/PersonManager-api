@@ -1,45 +1,81 @@
-package org.example.personmanagerapi.exception;
+package org.example.personmanagerapi.exception.global;
 
+import jakarta.validation.ConstraintViolationException;
+import org.example.personmanagerapi.exception.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(PersonNotFoundException.class)
-    public ResponseEntity<String> handlePersonNotFoundException(PersonNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    public ResponseEntity<ExceptionDto> handlePersonNotFoundException(PersonNotFoundException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     @ExceptionHandler(InvalidPersonTypeException.class)
-    public ResponseEntity<String> handleInvalidPersonTypeException(InvalidPersonTypeException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    public ResponseEntity<ExceptionDto> handleInvalidPersonTypeException(InvalidPersonTypeException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(PositionOverlapException.class)
-    public ResponseEntity<String> handlePositionOverlapException(PositionOverlapException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    public ResponseEntity<ExceptionDto> handlePositionOverlapException(PositionOverlapException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<String> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        List<String> errors = ex.getBindingResult()
-                .getAllErrors()
-                .stream()
-                .map(DefaultMessageSourceResolvable::getDefaultMessage)
-                .collect(Collectors.toList());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(String.join(", ", errors));
+    @ExceptionHandler(ImportStatusNotFoundException.class)
+    public ResponseEntity<ExceptionDto> handleImportStatusNotFoundException(ImportStatusNotFoundException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(CSVProcessingException.class)
+    public ResponseEntity<ExceptionDto> handleCSVProcessingException(CSVProcessingException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(ConcurrentImportException.class)
+    public ResponseEntity<ExceptionDto> handleConcurrentImportException(ConcurrentImportException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(PositionNotFoundException.class)
+    public ResponseEntity<ExceptionDto> handlePositionNotFoundException(PositionNotFoundException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ExceptionDto> handleConstraintViolationException(ConstraintViolationException ex) {
+        ExceptionDto response = new ExceptionDto("Constraint violation: " + ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(DuplicatePersonException.class)
+    public ResponseEntity<ExceptionDto> handleDuplicatePersonException(DuplicatePersonException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ExceptionDto> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        ExceptionDto response = new ExceptionDto("Data integrity violation: " + ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleAllExceptions(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred");
+    public ResponseEntity<ExceptionDto> handleAllExceptions(Exception ex) {
+        ExceptionDto response = new ExceptionDto("An unexpected error occurred");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
+
 
