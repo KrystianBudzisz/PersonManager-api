@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+
     @ExceptionHandler(PersonNotFoundException.class)
     public ResponseEntity<ExceptionDto> handlePersonNotFoundException(PersonNotFoundException ex) {
         ExceptionDto response = new ExceptionDto(ex.getMessage());

@@ -5,16 +5,31 @@ import org.example.personmanagerapi.person.model.PersonCommand;
 import org.example.personmanagerapi.student.model.Student;
 import org.example.personmanagerapi.student.model.StudentCommand;
 import org.example.personmanagerapi.utils.CommandUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Component
 public class StudentStrategy implements PersonTypeStrategy {
+
+    @Override
+    public String getType() {
+        return "student";
+    }
+
+    @Override
+    public Class<? extends Person> getPersonClass() {
+        return Student.class;
+    }
+
+    @Override
+    public void insertSpecificFields(Map<String, Object> specificFields, JdbcTemplate jdbcTemplate, String pesel) {
+        String studentSql = "INSERT INTO student (id, university_name, year_of_study, field_of_study, scholarship) " +
+                "SELECT id, ?, ?, ?, ? FROM person WHERE pesel = ?";
+        jdbcTemplate.update(studentSql, specificFields.get("field1"), Integer.parseInt(specificFields.get("field2").toString()), specificFields.get("field3"), Double.parseDouble(specificFields.get("field4").toString()), pesel);
+    }
+
 
     @Override
     public Student preparePerson(PersonCommand personCommand) {
@@ -34,26 +49,7 @@ public class StudentStrategy implements PersonTypeStrategy {
         return student;
     }
 
-    @Override
-    public List<String> getRequiredFields() {
-        return Arrays.asList("universityName", "yearOfStudy", "fieldOfStudy", "scholarship");
-    }
-
-    @Override
-    public Map<String, Object> getDynamicCriteria() {
-        Map<String, Object> criteria = new HashMap<>();
-        criteria.put("universityName", String.class);
-        criteria.put("yearOfStudy", Integer.class);
-        criteria.put("fieldOfStudy", String.class);
-        criteria.put("scholarshipFrom", BigDecimal.class);
-        criteria.put("scholarshipTo", BigDecimal.class);
-        return criteria;
-    }
-
-    @Override
-    public Class<? extends Person> getPersonType() {
-        return Student.class;
-    }
 }
+
 
 
