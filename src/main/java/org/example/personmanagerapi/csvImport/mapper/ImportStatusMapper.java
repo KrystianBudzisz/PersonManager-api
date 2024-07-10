@@ -1,5 +1,7 @@
-package org.example.personmanagerapi.csvImport.model;
+package org.example.personmanagerapi.csvImport.mapper;
 
+import org.example.personmanagerapi.csvImport.model.ImportStatus;
+import org.example.personmanagerapi.csvImport.model.ImportStatusDTO;
 import org.springframework.stereotype.Component;
 
 @Component

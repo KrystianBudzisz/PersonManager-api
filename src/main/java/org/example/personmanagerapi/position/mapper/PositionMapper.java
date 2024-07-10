@@ -1,5 +1,8 @@
-package org.example.personmanagerapi.position.model;
+package org.example.personmanagerapi.position.mapper;
 
+import org.example.personmanagerapi.position.model.Position;
+import org.example.personmanagerapi.position.model.PositionCommand;
+import org.example.personmanagerapi.position.model.PositionDTO;
 import org.springframework.stereotype.Component;
 
 @Component

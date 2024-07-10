@@ -1,7 +1,6 @@
 package org.example.personmanagerapi.csvImport;
 
 import org.example.personmanagerapi.csvImport.model.ImportStatusDTO;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -11,8 +10,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/imports")
 public class ImportController {
 
-    @Autowired
-    private CSVImportService csvImportService;
+    private final CSVImportService csvImportService;
+
+    public ImportController(CSVImportService csvImportService) {
+        this.csvImportService = csvImportService;
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.OK)

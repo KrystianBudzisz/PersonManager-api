@@ -4,15 +4,14 @@ package org.example.personmanagerapi.person;
 import org.example.personmanagerapi.exception.DuplicatePersonException;
 import org.example.personmanagerapi.exception.InvalidPersonTypeException;
 import org.example.personmanagerapi.exception.PersonNotFoundException;
+import org.example.personmanagerapi.person.mapper.PersonMapper;
 import org.example.personmanagerapi.person.model.Person;
 import org.example.personmanagerapi.person.model.PersonCommand;
 import org.example.personmanagerapi.person.model.PersonDTO;
-import org.example.personmanagerapi.person.model.PersonMapper;
 import org.example.personmanagerapi.person.search.PersonSearchCriteria;
 import org.example.personmanagerapi.person.search.PersonSpecification;
 import org.example.personmanagerapi.strategy.PersonTypeStrategy;
 import org.example.personmanagerapi.strategy.PersonTypeStrategyFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,24 +20,21 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
-import java.util.UUID;
-
 @Service
 public class PersonService {
 
-    @Autowired
-    private PersonRepository personRepository;
+    private final PersonRepository personRepository;
+    private final PersonMapper personMapper;
+    private final PersonTypeStrategyFactory strategyFactory;
 
-    @Autowired
-    private PersonMapper personMapper;
-
-    @Autowired
-    private PersonTypeStrategyFactory strategyFactory;
-
+    public PersonService(PersonRepository personRepository, PersonMapper personMapper, PersonTypeStrategyFactory strategyFactory) {
+        this.personRepository = personRepository;
+        this.personMapper = personMapper;
+        this.strategyFactory = strategyFactory;
+    }
 
     @Transactional(readOnly = true)
-    public PersonDTO getPersonById(UUID personId) {
+    public PersonDTO getPersonById(Long personId) {
         Person person = personRepository.findById(personId)
                 .orElseThrow(() -> new PersonNotFoundException("Person not found with ID: " + personId));
         return personMapper.toDTO(person);
@@ -46,11 +42,11 @@ public class PersonService {
 
     @Transactional(readOnly = true)
     public Page<PersonDTO> searchPersons(PersonSearchCriteria criteria, Pageable pageable) {
-        Map<String, Object> dynamicCriteria = strategyFactory.getDynamicCriteria(criteria.getType());
-        Specification<Person> specification = new PersonSpecification(criteria, dynamicCriteria, strategyFactory);
+        Specification<Person> specification = new PersonSpecification(criteria, strategyFactory);
         Page<Person> personPage = personRepository.findAll(specification, pageable);
         return personPage.map(personMapper::toDTO);
     }
+
 
     @Transactional
     public PersonDTO createPerson(PersonCommand personCommand) {
@@ -68,7 +64,7 @@ public class PersonService {
     }
 
     @Transactional
-    public PersonDTO updatePerson(UUID id, PersonCommand personCommand) {
+    public PersonDTO updatePerson(Long id, PersonCommand personCommand) {
         Person existingPerson = personRepository.findById(id)
                 .orElseThrow(() -> new PersonNotFoundException("Person not found with ID: " + id));
 
@@ -93,4 +89,6 @@ public class PersonService {
         }
     }
 }
+
+
 

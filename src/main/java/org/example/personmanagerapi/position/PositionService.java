@@ -7,30 +7,30 @@ import org.example.personmanagerapi.exception.PositionNotFoundException;
 import org.example.personmanagerapi.exception.PositionOverlapException;
 import org.example.personmanagerapi.person.PersonRepository;
 import org.example.personmanagerapi.person.model.Person;
+import org.example.personmanagerapi.position.mapper.PositionMapper;
 import org.example.personmanagerapi.position.model.Position;
 import org.example.personmanagerapi.position.model.PositionCommand;
-import org.example.personmanagerapi.position.model.PositionMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.UUID;
 
 @Service
 public class PositionService {
 
-    @Autowired
-    private PositionRepository positionRepository;
+    private final PositionRepository positionRepository;
+    private final PersonRepository personRepository;
+    private final PositionMapper positionMapper;
 
-    @Autowired
-    private PersonRepository personRepository;
+    public PositionService(PositionRepository positionRepository, PersonRepository personRepository, PositionMapper positionMapper) {
+        this.positionRepository = positionRepository;
+        this.personRepository = personRepository;
+        this.positionMapper = positionMapper;
+    }
 
-    @Autowired
-    private PositionMapper positionMapper;
 
     @Transactional
-    public void addPositionToEmployee(UUID employeeId, PositionCommand positionCommand) {
+    public void addPositionToEmployee(Long employeeId, PositionCommand positionCommand) {
         Person person = personRepository.findById(employeeId)
                 .orElseThrow(() -> new PersonNotFoundException("Employee not found"));
 
@@ -61,14 +61,14 @@ public class PositionService {
         return endDate.isAfter(startDate) || endDate.isEqual(startDate);
     }
 
-    private void validatePositionDates(UUID employeeId, PositionCommand newPosition) {
+    private void validatePositionDates(Long employeeId, PositionCommand newPosition) {
         if (positionRepository.existsOverlappingPosition(employeeId, newPosition.getStartDate(), newPosition.getEndDate())) {
             throw new PositionOverlapException("Position dates overlap with an existing position");
         }
     }
 
     @Transactional
-    public void removePositionFromEmployee(UUID employeeId, Long positionId) {
+    public void removePositionFromEmployee(Long employeeId, Long positionId) {
         Person person = personRepository.findById(employeeId)
                 .orElseThrow(() -> new PersonNotFoundException("Employee not found"));
 

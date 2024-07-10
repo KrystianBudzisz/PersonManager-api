@@ -5,17 +5,31 @@ import org.example.personmanagerapi.employee.model.Employee;
 import org.example.personmanagerapi.person.model.Person;
 import org.example.personmanagerapi.person.model.PersonCommand;
 import org.example.personmanagerapi.utils.CommandUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Component
 public class EmployeeStrategy implements PersonTypeStrategy {
+
+    @Override
+    public String getType() {
+        return "employee";
+    }
+
+    @Override
+    public Class<? extends Person> getPersonClass() {
+        return Employee.class;
+    }
+
+    @Override
+    public void insertSpecificFields(Map<String, Object> specificFields, JdbcTemplate jdbcTemplate, String pesel) {
+        String employeeSql = "INSERT INTO employee (id, employment_date, current_position, current_salary) " +
+                "SELECT id, ?, ?, ? FROM person WHERE pesel = ?";
+        jdbcTemplate.update(employeeSql, specificFields.get("field1"), specificFields.get("field2"), Double.parseDouble(specificFields.get("field3").toString()), pesel);
+    }
+
 
     @Override
     public Employee preparePerson(PersonCommand personCommand) {
@@ -34,27 +48,8 @@ public class EmployeeStrategy implements PersonTypeStrategy {
         return employee;
     }
 
-    @Override
-    public List<String> getRequiredFields() {
-        return Arrays.asList("employmentDate", "currentPosition", "currentSalary");
-    }
-
-    @Override
-    public Map<String, Object> getDynamicCriteria() {
-        Map<String, Object> criteria = new HashMap<>();
-        criteria.put("employmentDateFrom", LocalDate.class);
-        criteria.put("employmentDateTo", LocalDate.class);
-        criteria.put("currentPosition", String.class);
-        criteria.put("currentSalaryFrom", BigDecimal.class);
-        criteria.put("currentSalaryTo", BigDecimal.class);
-        return criteria;
-    }
-
-    @Override
-    public Class<? extends Person> getPersonType() {
-        return Employee.class;
-    }
 }
+
 
 
 

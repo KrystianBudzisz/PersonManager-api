@@ -6,17 +6,32 @@ import org.example.personmanagerapi.person.model.PersonCommand;
 import org.example.personmanagerapi.rentiree.model.Retiree;
 import org.example.personmanagerapi.rentiree.model.RetireeCommand;
 import org.example.personmanagerapi.utils.CommandUtils;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 
 @Component
 public class RetireeStrategy implements PersonTypeStrategy {
+
+    @Override
+    public String getType() {
+        return "retiree";
+    }
+
+    @Override
+    public Class<? extends Person> getPersonClass() {
+        return Retiree.class;
+    }
+
+    @Override
+    public void insertSpecificFields(Map<String, Object> specificFields, JdbcTemplate jdbcTemplate, String pesel) {
+        String retireeSql = "INSERT INTO retiree (id, pension, years_worked) " +
+                "SELECT id, ?, ? FROM person WHERE pesel = ?";
+        jdbcTemplate.update(retireeSql, Double.parseDouble(specificFields.get("field1").toString()), Integer.parseInt(specificFields.get("field2").toString()), pesel);
+    }
+
 
     @Override
     public Retiree preparePerson(PersonCommand personCommand) {
@@ -34,26 +49,8 @@ public class RetireeStrategy implements PersonTypeStrategy {
         return retiree;
     }
 
-    @Override
-    public List<String> getRequiredFields() {
-        return Arrays.asList("pension", "yearsWorked");
-    }
-
-    @Override
-    public Map<String, Object> getDynamicCriteria() {
-        Map<String, Object> criteria = new HashMap<>();
-        criteria.put("pensionFrom", BigDecimal.class);
-        criteria.put("pensionTo", BigDecimal.class);
-        criteria.put("yearsWorkedFrom", Integer.class);
-        criteria.put("yearsWorkedTo", Integer.class);
-        return criteria;
-    }
-
-    @Override
-    public Class<? extends Person> getPersonType() {
-        return Retiree.class;
-    }
 }
+
 
 
 

@@ -1,24 +1,22 @@
 package org.example.personmanagerapi.csvImport;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
-import org.example.personmanagerapi.csvImport.model.ImportStatus;
+import com.opencsv.CSVReader;
 import org.example.personmanagerapi.exception.CSVProcessingException;
-import org.example.personmanagerapi.exception.ImportStatusNotFoundException;
-import org.example.personmanagerapi.person.PersonService;
 import org.example.personmanagerapi.person.model.PersonCommand;
 import org.example.personmanagerapi.strategy.PersonTypeStrategy;
 import org.example.personmanagerapi.strategy.PersonTypeStrategyFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.time.LocalDateTime;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,85 +24,110 @@ import java.util.Map;
 @Service
 public class CSVProcessAsync {
 
-    @Autowired
-    private PersonTypeStrategyFactory personTypeStrategyFactory;
+    private static final int BATCH_SIZE = 10000;
+    private final JdbcTemplate jdbcTemplate;
+    private final ImportStatusUpdateService importStatusUpdateService;
+    private final PersonTypeStrategyFactory personTypeStrategyFactory;
 
-    @Autowired
-    private ImportStatusRepository importStatusRepository;
+    public CSVProcessAsync(JdbcTemplate jdbcTemplate, ImportStatusUpdateService importStatusUpdateService,
+                           PersonTypeStrategyFactory personTypeStrategyFactory) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.importStatusUpdateService = importStatusUpdateService;
+        this.personTypeStrategyFactory = personTypeStrategyFactory;
+    }
 
-    @Autowired
-    private ImportStatusUpdateService importStatusUpdateService;
-
-    @Autowired
-    private PersonService personService;
 
     @Async
     @Transactional
     public void processCSVFile(MultipartFile file, Long importStatusId) {
-        ImportStatus importStatus = importStatusRepository.findById(importStatusId)
-                .orElseThrow(() -> new ImportStatusNotFoundException("Import status not found"));
+        try (InputStream inputStream = file.getInputStream();
+             CSVReader reader = new CSVReader(new InputStreamReader(inputStream))) {
 
-        importStatus.setStartedDate(LocalDateTime.now());
-        importStatus.setStatus("IN_PROGRESS");
-        importStatusRepository.save(importStatus);
+            String[] line;
+            reader.readNext();
+            int processedRecords = 0;
+            List<PersonCommand> batch = new ArrayList<>();
 
-        int processedRecords = 0;
+            while ((line = reader.readNext()) != null) {
+                processedRecords++;
+                PersonCommand personCommand = preparePerson(line);
+                batch.add(personCommand);
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
-             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
-
-            for (CSVRecord record : csvParser) {
-                try {
-                    PersonCommand personCommand = processRecord(record);
-                    personService.createPerson(personCommand);
-                    processedRecords++;
+                if (batch.size() >= BATCH_SIZE) {
+                    insertBatch(batch);
+                    batch.clear();
                     importStatusUpdateService.updateProcessedRecords(importStatusId, processedRecords);
-                } catch (Exception e) {
-                    importStatusUpdateService.setImportStatusFailed(importStatusId);
-                    throw new CSVProcessingException("Failed to process data", e);
                 }
             }
 
-            importStatus.setStatus("COMPLETED");
-            importStatus.setProcessedRecords(processedRecords);
-            importStatusRepository.save(importStatus);
+            if (!batch.isEmpty()) {
+                insertBatch(batch);
+                importStatusUpdateService.updateProcessedRecords(importStatusId, processedRecords);
+            }
+
+            importStatusUpdateService.updateImportStatusCompleted(importStatusId, processedRecords);
         } catch (Exception e) {
             importStatusUpdateService.setImportStatusFailed(importStatusId);
-            throw new CSVProcessingException("Failed to process data", e);
+            throw new CSVProcessingException("Failed to process CSV file", e);
         }
     }
 
-    public PersonCommand processRecord(CSVRecord record) {
-        String type = record.get(0).trim();
-        PersonTypeStrategy strategy = personTypeStrategyFactory.getStrategy(type);
 
-        if (strategy == null) {
-            throw new IllegalArgumentException("Unknown person type: " + type);
+    private PersonCommand preparePerson(String[] fields) {
+        if (fields.length < 7) {
+            throw new CSVProcessingException("Invalid CSV format");
         }
 
-        List<String> requiredFields = strategy.getRequiredFields();
-        int totalFields = 7 + requiredFields.size();
+        PersonCommand command = new PersonCommand();
+        try {
+            command.setType(fields[0].trim());
+            command.setFirstName(fields[1].trim());
+            command.setLastName(fields[2].trim());
+            command.setPesel(fields[3].trim());
+            command.setHeight(Double.parseDouble(fields[4].trim()));
+            command.setWeight(Double.parseDouble(fields[5].trim()));
+            command.setEmail(fields[6].trim());
 
-        if (record.size() < totalFields) {
-            throw new IllegalArgumentException("Invalid CSV format for type: " + type);
+            Map<String, Object> specificFields = new HashMap<>();
+            for (int i = 7; i < fields.length; i++) {
+                specificFields.put("field" + (i - 6), fields[i].trim());
+            }
+            command.setTypeSpecificFields(specificFields);
+        } catch (NumberFormatException e) {
+            throw new CSVProcessingException("Error parsing CSV data", e);
         }
 
-        PersonCommand personCommand = new PersonCommand();
-        personCommand.setType(type);
-        personCommand.setFirstName(record.get(1).trim());
-        personCommand.setLastName(record.get(2).trim());
-        personCommand.setPesel(record.get(3).trim());
-        personCommand.setHeight(Double.parseDouble(record.get(4).trim()));
-        personCommand.setWeight(Double.parseDouble(record.get(5).trim()));
-        personCommand.setEmail(record.get(6).trim());
 
-        Map<String, Object> typeSpecificFields = new HashMap<>();
-        for (int i = 0; i < requiredFields.size(); i++) {
-            typeSpecificFields.put(requiredFields.get(i), record.get(7 + i).trim());
+        return command;
+    }
+
+
+    private void insertBatch(List<PersonCommand> batch) {
+        String personSql = "INSERT INTO person (type, first_name, last_name, pesel, height, weight, email) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        jdbcTemplate.batchUpdate(personSql, new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                PersonCommand command = batch.get(i);
+                ps.setString(1, command.getType());
+                ps.setString(2, command.getFirstName());
+                ps.setString(3, command.getLastName());
+                ps.setString(4, command.getPesel());
+                ps.setDouble(5, command.getHeight());
+                ps.setDouble(6, command.getWeight());
+                ps.setString(7, command.getEmail());
+            }
+
+            @Override
+            public int getBatchSize() {
+                return batch.size();
+            }
+        });
+
+        for (PersonCommand command : batch) {
+            PersonTypeStrategy strategy = personTypeStrategyFactory.getStrategy(command.getType());
+            strategy.insertSpecificFields(command.getTypeSpecificFields(), jdbcTemplate, command.getPesel());
         }
-        personCommand.setTypeSpecificFields(typeSpecificFields);
-
-        return personCommand;
     }
 }
 
