@@ -72,11 +72,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ExceptionDto> handleAllExceptions(Exception ex) {
-        ExceptionDto response = new ExceptionDto("An unexpected error occurred");
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+
+    @ExceptionHandler(FileEmptyException.class)
+    public ResponseEntity<ExceptionDto> handleFileEmptyException(FileEmptyException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
+
+    @ExceptionHandler(InvalidCSVFormatException.class)
+    public ResponseEntity<ExceptionDto> handleInvalidCSVFormatException(InvalidCSVFormatException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(CSVParsingException.class)
+    public ResponseEntity<ExceptionDto> handleCSVParsingException(CSVParsingException ex) {
+        ExceptionDto response = new ExceptionDto(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+
+
 }
 
 
